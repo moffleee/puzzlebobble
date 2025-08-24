@@ -14,7 +14,7 @@ html,body{
   display:flex; justify-content:space-between; align-items:center;
   z-index:10; pointer-events:none;
 }
-.hud .left,.hud .right{ pointer-events:auto; }
+.hud .left,.hud .right{ pointer-events:auto; display:flex; align-items:center; gap:10px; }
 .label{ color:var(--muted); margin-right:8px; }
 .btn{
   background:#1c1c1c; color:#fff; border:1px solid #333; padding:10px 14px; border-radius:12px; cursor:pointer;
@@ -23,16 +23,16 @@ html,body{
 }
 .btn:hover{ background:#222; border-color:#444; transform:translateY(-1px); }
 
-/* ★ 背景1枚方式：ページ背景にビーチ画像を敷く */
+/* 背景1枚方式 */
 .stage{
   min-height:100dvh; display:grid; place-items:center; padding:64px 16px 24px;
-  background-image: url("../assets/img/bg_beach.png"); /* ← 修正：img ディレクトリ */
+  background-image: url("../assets/img/bg_beach.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-/* Canvasは透過、枠線と影だけ残す */
+/* Canvasは透過 */
 canvas#game{
   width:min(92vw,480px); height:calc(min(92vw,480px) * 1.5);
   background: transparent;
@@ -42,7 +42,7 @@ canvas#game{
   touch-action: none; -ms-touch-action: none;
 }
 
-/* NEXTパネルは背景上で視認性を確保 */
+/* NEXTパネル */
 .nextDock{
   position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
   width:120px; text-align:center;
@@ -54,7 +54,7 @@ canvas#game{
 .nextDock .title{ font-size:12px; color:#aaa; margin-bottom:6px; letter-spacing:1px; }
 #next{ width:96px; height:96px; display:block; margin:0 auto; }
 
-/* オーバーレイ（Clear/Over/Paused） */
+/* オーバーレイ（共通） */
 .overlay{
   position:absolute; inset:0; display:grid; place-items:center; border-radius:16px;
   background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.65));
@@ -68,10 +68,21 @@ canvas#game{
 .overlay .btn{ background:#1e1e1e; }
 .overlay .btn:hover{ background:#232323; }
 
+/* BGMボリュームUI */
+.vol{
+  display:flex; align-items:center; gap:6px;
+  background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.15);
+  padding:6px 8px; border-radius:12px; backdrop-filter: blur(4px);
+}
+.volLabel{ font-size:12px; color:#ddd; }
+.volVal{ font-size:12px; color:#ccc; min-width:36px; text-align:right; }
+#bgmVol{ width:140px; }
+
 /* モバイル最適化 */
 @media (max-width: 640px){
   .btn{ padding:12px 16px; font-size:15px; border-radius:14px; }
   .hud{ inset:calc(env(safe-area-inset-top, 0px) + 8px) 8px auto 8px; }
   .nextDock{ right:8px; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); width:112px; }
   #next{ width:88px; height:88px; }
+  #bgmVol{ width:110px; }
 }
