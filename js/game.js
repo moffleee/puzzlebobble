@@ -1,4 +1,4 @@
-// game.js - ランダム初期配置 + サウンド（BGM/ボイス/shot/hit） + STARTでオーディオ解禁 + モバイル操作
+// game.js - ランダム初期配置 + サウンド（BGM/ボイス/shot/hit） + STARTでオーディオ解禁 + モバイル操作 + BGM音量UI
 
 (() => {
   // ====== 基本設定 ======
@@ -30,7 +30,7 @@
   const btnResume = document.getElementById("btnResume");
   const btnOverlayRetry = document.getElementById("btnOverlayRetry");
 
-  // ====== START オーバーレイ（無ければ生成） ======
+  // STARTオーバーレイ（無ければ生成）
   let startOverlay = document.getElementById("startOverlay");
   let btnStart = document.getElementById("btnStart");
   if (!startOverlay) {
@@ -38,13 +38,25 @@
     startOverlay.id = "startOverlay";
     startOverlay.className = "overlay";
     startOverlay.innerHTML = `
-      <div class="overlay-text">Cryptoバブルボブル</div>
-      <div class="overlay-actions">
-        <button id="btnStart" class="btn">START</button>
-      </div>`;
+      <div class="overlay-text">PUZZLE-X</div>
+      <div class="overlay-actions"><button id="btnStart" class="btn">START</button></div>`;
     const stage = document.querySelector(".stage") || document.body;
     stage.appendChild(startOverlay);
     btnStart = startOverlay.querySelector("#btnStart");
+  }
+
+  // ====== BGM 音量UI ======
+  const volSlider = document.getElementById("bgmVol");
+  const volVal = document.getElementById("bgmVolVal");
+  // 0-1 に正規化して永続化
+  function loadSavedBgmVolume(){
+    const s = localStorage.getItem("px_bgm_vol");
+    const v = s != null ? Number(s) : 0.4;
+    if (Number.isFinite(v) && v >= 0 && v <= 1) return v;
+    return 0.4;
+  }
+  function saveBgmVolume(v){
+    localStorage.setItem("px_bgm_vol", String(v));
   }
 
   // ====== ステート ======
@@ -60,20 +72,46 @@
   let moving = null;       // 発射中の玉 {x,y,vx,vy,r,color,avatarId}
   let nextBall = null;
 
-  // タッチ状態
+  // タッチ
   let touchAiming = false;
   let activeTouchId = null;
 
   // ====== サウンド ======
   let bgm;
   let audioUnlocked = false;
+  let bgmVolume = loadSavedBgmVolume(); // 0..1
+
+  function setBgmVolume(v){
+    bgmVolume = Math.max(0, Math.min(1, v));
+    saveBgmVolume(bgmVolume);
+    // UI反映
+    if (volSlider) volSlider.value = String(Math.round(bgmVolume * 100));
+    if (volVal) volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
+    // 実オブジェクトに適用
+    if (bgm) bgm.volume = bgmVolume;
+  }
+
+  // UI初期値
+  if (volSlider) {
+    volSlider.value = String(Math.round(bgmVolume * 100));
+  }
+  if (volVal) {
+    volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
+  }
+  // UIイベント
+  if (volSlider) {
+    volSlider.addEventListener("input", (e)=>{
+      const v = Number(volSlider.value) / 100;
+      setBgmVolume(v);
+    });
+  }
 
   function playBGM(){
     if (!bgm){
-      bgm = new Audio("assets/sound/bgm.mp3"); // フォルダは /assets/sound/
+      bgm = new Audio("assets/sound/bgm.mp3");
       bgm.loop = true;
-      bgm.volume = 0.4;
     }
+    bgm.volume = bgmVolume;
     bgm.play().catch(()=>{ /* ユーザー操作前は失敗する */ });
   }
   function stopBGM(){ if (bgm) bgm.pause(); }
@@ -90,7 +128,6 @@
     snd.volume = 0.6;
     snd.play().catch(()=>{});
   }
-
   // 個別ボイス（発射）
   function playFireVoice(avatarId){
     const snd = new Audio(`assets/sound/fire_${avatarId}.mp3`);
@@ -104,7 +141,7 @@
     snd.play().catch(()=>{});
   }
 
-  // ====== 画像ローダー（拡張子曖昧対策） ======
+  // ====== 画像ローダー ======
   const BLOB_URLS = [];
   window.addEventListener("unload", () => { BLOB_URLS.forEach(u => URL.revokeObjectURL(u)); });
 
@@ -169,7 +206,7 @@
     }
   }
 
-  // 次弾：盤に存在する色から選択（無ければpaletteから）
+  // 次弾
   function makeNextBall(){
     const colors = PXGrid.existingColors(board);
     const color = colors.length
@@ -194,22 +231,24 @@
     state = "ready";
     moving = null;
     nextBall = makeNextBall();
-    shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    if (shotsLeftEl){
+      shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    }
     hideOverlay();
-    // BGMは START クリックで開始する
+    // BGMは START クリックで開始
     loop(0);
   }
 
   // ====== 入力（PCマウス） ======
   cv.addEventListener("mousemove", e=>{
-    if (touchAiming) return; // タッチ中は無視
+    if (touchAiming) return;
     const {x,y} = clientToCanvas(e.clientX, e.clientY);
     aim.x = clampAimX(x);
     aim.y = Math.min(y, shooter.y - 12);
   });
   cv.addEventListener("click", ()=>{ if (state === "ready") fire(); });
 
-  // ====== 入力（モバイル：押しっぱ→左右スライド→離して発射） ======
+  // ====== 入力（モバイル） ======
   cv.addEventListener("touchstart", (e)=>{
     if (e.changedTouches.length === 0) return;
     const t = e.changedTouches[0];
@@ -264,13 +303,11 @@
     const scaleY = cv.height / rect.height;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
-
   function clampAimX(x){
     const minX = CONFIG.LEFT_MARGIN + CONFIG.R;
     const maxX = cv.width - CONFIG.RIGHT_MARGIN - CONFIG.R;
     return Math.min(maxX, Math.max(minX, x));
   }
-
   function applyMinAngle(vx, vy){
     const angle = Math.atan2(-vy, vx);
     const min = CONFIG.MIN_AIM_ANGLE_DEG * Math.PI / 180;
@@ -300,7 +337,7 @@
     };
     state = "firing";
 
-    // ★共通発射音 + 個別ボイス
+    // 共通発射音 + 個別ボイス
     if (audioUnlocked) {
       playShotSfx();
       playFireVoice(nextBall.avatarId);
@@ -326,7 +363,6 @@
           board[r][c] = null;
         }
       }
-      // 天井連結以外を落とす
       const connected = PXGrid.findCeilingConnected(board);
       for (let r = 0; r < board.length; r++){
         for (let c = 0; c < CONFIG.COLS; c++){
@@ -334,7 +370,7 @@
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
-            if (audioUnlocked) playClearVoice(cell.avatarId); // 落下もボイスOK
+            if (audioUnlocked) playClearVoice(cell.avatarId); // 落下もボイス
             board[r][c] = null;
           }
         }
@@ -351,7 +387,6 @@
     }
     return true;
   }
-
   function isGameOver(){
     const bottomY = cv.height - CONFIG.BOTTOM_MARGIN;
     for (let r = 0; r < board.length; r++){
@@ -364,7 +399,6 @@
     }
     return false;
   }
-
   function dropCeilingIfNeeded(){
     if (shotsUsed > 0 && shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS === 0){
       dropOffsetY += PXGrid.ROW_H;
@@ -380,9 +414,7 @@
       showOverlay("PAUSED");
     });
   }
-  if (btnRetry){
-    btnRetry.addEventListener("click", ()=> reset());
-  }
+  if (btnRetry){ btnRetry.addEventListener("click", ()=> reset()); }
   if (btnResume){
     btnResume.addEventListener("click", ()=>{
       if (state !== "paused") return;
@@ -391,9 +423,7 @@
       if (audioUnlocked) playBGM();
     });
   }
-  if (btnOverlayRetry){
-    btnOverlayRetry.addEventListener("click", ()=> reset());
-  }
+  if (btnOverlayRetry){ btnOverlayRetry.addEventListener("click", ()=> reset()); }
 
   // ====== START クリックでオーディオ解禁＆ゲーム開始 ======
   btnStart.addEventListener("click", async ()=>{
@@ -409,6 +439,7 @@
     }
   });
 
+  // ====== reset/init 共通 ======
   async function reset(){
     await loadLevel();
     dropOffsetY = 0;
@@ -416,11 +447,12 @@
     moving = null;
     nextBall = makeNextBall();
     state = "ready";
-    shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    if (shotsLeftEl){
+      shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    }
     hideOverlay();
     if (audioUnlocked) playBGM();
   }
-
   function showOverlay(text){
     if (!overlay) return;
     overlayText.textContent = text;
@@ -443,17 +475,14 @@
     last = ts;
 
     if (state === "firing" && moving){
-      // 位置更新
       moving.x += moving.vx * dt;
       moving.y += moving.vy * dt;
 
-      // 壁反射
       PXPhys.reflectIfNeeded(moving, {
         left: CONFIG.LEFT_MARGIN,
         right: cv.width - CONFIG.RIGHT_MARGIN
       });
 
-      // 天井ヒット → スナップして結合
       if (PXPhys.hitCeiling(moving, CONFIG.TOP_MARGIN + 24 + dropOffsetY, CONFIG.R)){
         const cells = PXGrid.nearbyCells(moving.x, moving.y, dropOffsetY);
         let best = null, bestD2 = 1e15;
@@ -466,37 +495,28 @@
         }
         if (best){
           placeAt(best.row, best.col, moving);
-
-          // ★付着音
           if (audioUnlocked) playHitSfx();
-
           handleMatchesAndFalls(best.row, best.col);
           moving = null;
           shotsUsed++;
           dropCeilingIfNeeded();
           state = "ready";
         } else {
-          // まれに最適スナップ無しの場合の微調整
           moving.y += 1;
         }
       } else {
-        // 既存セルと衝突
         const col = PXPhys.checkCollision(moving, board, dropOffsetY, CONFIG.R);
         if (col.hit){
           const snap = PXPhys.chooseSnapCell(board, dropOffsetY, CONFIG.R, moving.x, moving.y, {r:col.r, c:col.c});
           if (snap){
             placeAt(snap.row, snap.col, moving);
-
-            // ★付着音
             if (audioUnlocked) playHitSfx();
-
             handleMatchesAndFalls(snap.row, snap.col);
             moving = null;
             shotsUsed++;
             dropCeilingIfNeeded();
             state = "ready";
           } else {
-            // 一歩戻して再評価（衝突分離の保険）
             moving.x -= moving.vx * dt;
             moving.y -= moving.vy * dt;
           }
@@ -504,7 +524,6 @@
       }
     }
 
-    // 進行中のステータス判定
     if (state !== "paused" && state !== "over" && state !== "clear"){
       if (isGameOver()){
         state = "over";
@@ -517,15 +536,12 @@
       }
     }
 
-    // HUD
     if (shotsLeftEl){
       shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     }
 
-    // 描画
     ctx.clearRect(0,0,cv.width,cv.height);
 
-    // フィールドの薄い枠
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 2;
     ctx.strokeRect(
@@ -535,33 +551,40 @@
       cv.height - CONFIG.TOP_MARGIN - CONFIG.BOTTOM_MARGIN
     );
 
-    // 盤面
     PXRender.drawBoard(ctx, board, dropOffsetY, CONFIG.R, images);
 
-    // 照準ガイド
     if (state === "ready"){
       PXRender.drawAimGuide(ctx, shooter.x, shooter.y, aim.x, aim.y);
     }
 
-    // 発射中の玉
     if (moving){
       const img = images[moving.avatarId];
       PXRender.drawAvatarBubble(ctx, img, moving.x, moving.y, CONFIG.R, moving.color);
     }
 
-    // シューター位置目印
     ctx.fillStyle = "#fff";
     ctx.globalAlpha = .15;
     ctx.beginPath(); ctx.arc(shooter.x, shooter.y, CONFIG.R*0.9, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    // 次弾
     PXRender.drawNext(cvNext, nextBall, CONFIG.R, images);
 
     requestAnimationFrame(loop);
   }
 
-  // ====== 自動起動はしない：STARTボタン待ち ======
-  // init(); ← 呼ばない
-})();
+  // 自動起動しない（START待ち）
+  // init();
 
+  // 音量UIの数値を初期反映（初回ロード直後）
+  setBgmVolume(bgmVolume);
+
+  // STARTが押されるまで待つ
+  btnStart.addEventListener("click", async ()=>{
+    if (!audioUnlocked) {
+      audioUnlocked = true;
+      playBGM();
+    }
+    startOverlay.classList.add("hidden");
+    if (!board) await init(); else await reset();
+  });
+})();
