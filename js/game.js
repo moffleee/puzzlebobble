@@ -1,4 +1,4 @@
-// game.js - ランダム初期配置 + サウンド対応版
+// game.js - ランダム初期配置 + サウンド対応版（完全文）
 
 (() => {
   // ====== 基本設定 ======
@@ -52,27 +52,21 @@
 
   function playBGM(){
     if (!bgm){
-      bgm = new Audio("assets/sound/bgm.mp3");
+      bgm = new Audio("assets/sound/bgm.mp3"); // ← フォルダ名 sound に統一
       bgm.loop = true;
       bgm.volume = 0.4;
     }
     bgm.play().catch(()=>{});
   }
-
-  function stopBGM(){
-    if (bgm) bgm.pause();
-  }
+  function stopBGM(){ if (bgm) bgm.pause(); }
 
   function playFireVoice(avatarId){
     const snd = new Audio(`assets/sound/fire_${avatarId}.mp3`);
-    snd.volume = 0.7;
-    snd.play();
+    snd.volume = 0.7; snd.play();
   }
-
   function playClearVoice(avatarId){
     const snd = new Audio(`assets/sound/clear_${avatarId}.mp3`);
-    snd.volume = 0.8;
-    snd.play();
+    snd.volume = 0.8; snd.play();
   }
 
   // ====== 画像ローダー ======
@@ -112,9 +106,7 @@
         img.src = objUrl;
         img.onload = () => resolve(img);
         img.onerror = (e) => reject(e);
-      }catch(err){
-        reject(err);
-      }
+      }catch(err){ reject(err); }
     });
   }
 
@@ -124,7 +116,6 @@
     const data = await resp.json();
     palette = data.palette;
     avatars = data.avatars;
-
     const jobs = avatars.map(a =>
       loadImageSmart(a.file).then(img => { images[a.id] = img; })
     );
@@ -134,7 +125,6 @@
   // ====== ランダム初期配置 ======
   async function loadLevel(){
     board = PXGrid.createBoard(CONFIG.BOARD_ROWS, CONFIG.COLS);
-
     for (let r = 0; r < CONFIG.INIT_ROWS; r++){
       for (let c = 0; c < CONFIG.COLS; c++){
         if (Math.random() < CONFIG.EMPTY_RATE) continue;
@@ -147,8 +137,9 @@
   // 次弾
   function makeNextBall(){
     const colors = PXGrid.existingColors(board);
-    const color = colors.length ? colors[Math.floor(Math.random()*colors.length)]
-                                : palette[Math.floor(Math.random()*palette.length)];
+    const color = colors.length
+      ? colors[Math.floor(Math.random()*colors.length)]
+      : palette[Math.floor(Math.random()*palette.length)];
     const avatarPool = avatars.filter(a => a.color.toLowerCase() === color.toLowerCase());
     const avatar = avatarPool.length
       ? avatarPool[Math.floor(Math.random() * avatarPool.length)]
@@ -170,7 +161,7 @@
     nextBall = makeNextBall();
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     hideOverlay();
-    playBGM();  // ★開始時にBGM再生
+    playBGM();
     loop(0);
   }
 
@@ -181,9 +172,7 @@
     aim.x = clampAimX(x);
     aim.y = Math.min(y, shooter.y - 12);
   });
-  cv.addEventListener("click", ()=>{
-    if (state === "ready") fire();
-  });
+  cv.addEventListener("click", ()=>{ if (state === "ready") fire(); });
 
   // ====== 入力（タッチ） ======
   cv.addEventListener("touchstart", (e)=>{
@@ -237,10 +226,7 @@
     const rect = cv.getBoundingClientRect();
     const scaleX = cv.width / rect.width;
     const scaleY = cv.height / rect.height;
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
-    };
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
   function clampAimX(x){
@@ -277,9 +263,7 @@
       color: nextBall.color, avatarId: nextBall.avatarId
     };
     state = "firing";
-
-    playFireVoice(nextBall.avatarId); // ★発射ボイス
-
+    playFireVoice(nextBall.avatarId);
     nextBall = makeNextBall();
   }
 
@@ -295,18 +279,18 @@
     if (cluster.length >= CONFIG.CLEAR_MATCH){
       for (const {r,c} of cluster){
         if (board[r][c]){
-          playClearVoice(board[r][c].avatarId); // ★消滅ボイス
+          playClearVoice(board[r][c].avatarId);
           board[r][c] = null;
         }
       }
       const connected = PXGrid.findCeilingConnected(board);
       for (let r = 0; r < board.length; r++){
-        for (let c = 0; c < CONFIG.COLS; c++){
+        for (let c = 0; c < PXGrid.COLS; c++){
           const cell = board[r][c];
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
-            playClearVoice(cell.avatarId); // 浮遊塊落下もボイス
+            playClearVoice(cell.avatarId);
             board[r][c] = null;
           }
         }
@@ -316,7 +300,7 @@
 
   function isCleared(){
     for (let r = 0; r < board.length; r++){
-      for (let c = 0; c < CONFIG.COLS; c++){
+      for (let c = 0; c < PXGrid.COLS; c++){
         if (board[r][c]) return false;
       }
     }
@@ -326,7 +310,7 @@
   function isGameOver(){
     const bottomY = cv.height - CONFIG.BOTTOM_MARGIN;
     for (let r = 0; r < board.length; r++){
-      for (let c = 0; c < CONFIG.COLS; c++){
+      for (let c = 0; c < PXGrid.COLS; c++){
         const cell = board[r][c];
         if (!cell) continue;
         const {x,y} = PXGrid.cellCenter(r,c,dropOffsetY);
@@ -391,10 +375,12 @@
     if (state === "firing" && moving){
       moving.x += moving.vx * dt;
       moving.y += moving.vy * dt;
+
       PXPhys.reflectIfNeeded(moving, {
         left: CONFIG.LEFT_MARGIN,
         right: cv.width - CONFIG.RIGHT_MARGIN
       });
+
       if (PXPhys.hitCeiling(moving, CONFIG.TOP_MARGIN + 24 + dropOffsetY, CONFIG.R)){
         const cells = PXGrid.nearbyCells(moving.x, moving.y, dropOffsetY);
         let best = null, bestD2 = 1e15;
@@ -449,24 +435,37 @@
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
 
     ctx.clearRect(0,0,cv.width,cv.height);
+
+    // フィールドのうっすら枠
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 2;
     ctx.strokeRect(CONFIG.LEFT_MARGIN, CONFIG.TOP_MARGIN, cv.width - CONFIG.LEFT_MARGIN - CONFIG.RIGHT_MARGIN, cv.height - CONFIG.TOP_MARGIN - CONFIG.BOTTOM_MARGIN);
 
+    // 盤面
     PXRender.drawBoard(ctx, board, dropOffsetY, CONFIG.R, images);
 
+    // 照準ガイド
     if (state === "ready"){
       PXRender.drawAimGuide(ctx, shooter.x, shooter.y, aim.x, aim.y);
     }
 
+    // 発射中の玉
     if (moving){
       const img = images[moving.avatarId];
       PXRender.drawAvatarBubble(ctx, img, moving.x, moving.y, CONFIG.R, moving.color);
     }
 
+    // シューター位置マーカー
     ctx.fillStyle = "#fff";
     ctx.globalAlpha = .15;
     ctx.beginPath(); ctx.arc(shooter.x, shooter.y, CONFIG.R*0.9, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    PXRender.drawNext(cvNext, next
+    // 次弾
+    PXRender.drawNext(cvNext, nextBall, CONFIG.R, images);
+
+    requestAnimationFrame(loop);
+  }
+
+  init();
+})();
