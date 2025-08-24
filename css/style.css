@@ -1,0 +1,45 @@
+:root{
+  --bg:#0b0b0b; --panel:#121212; --fg:#fff; --muted:#c9c9c9; --accent:#ffd400;
+}
+*{ box-sizing:border-box; }
+html,body{
+  margin:0; padding:0; background:var(--bg); color:var(--fg);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;
+}
+.hud{
+  position:fixed; inset:16px 16px auto 16px; display:flex; justify-content:space-between; align-items:center;
+  z-index:10; pointer-events:none;
+}
+.hud .left,.hud .right{ pointer-events:auto; }
+.label{ color:var(--muted); margin-right:8px; }
+.btn{
+  background:#1c1c1c; color:#fff; border:1px solid #333; padding:8px 12px; border-radius:10px; cursor:pointer;
+  transition:transform .08s ease, background .2s ease, border-color .2s ease;
+}
+.btn:hover{ background:#222; border-color:#444; transform:translateY(-1px); }
+.stage{
+  min-height:100dvh; display:grid; place-items:center; padding:64px 16px 24px;
+}
+canvas#game{
+  width:min(92vw,480px); height:calc(min(92vw,480px) * 1.5);
+  background:#111; border:1px solid #252525; border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.4);
+}
+.nextDock{
+  position:fixed; right:16px; bottom:16px; width:120px; text-align:center; background:#111; border:1px solid #272727;
+  border-radius:14px; padding:10px 8px; box-shadow:0 6px 24px rgba(0,0,0,.35);
+}
+.nextDock .title{ font-size:12px; color:#aaa; margin-bottom:6px; letter-spacing:1px; }
+#next{ width:96px; height:96px; display:block; margin:0 auto; }
+
+.overlay{
+  position:absolute; inset:0; display:grid; place-items:center; border-radius:16px;
+  background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.65));
+}
+.hidden{ display:none; }
+.overlay-text{
+  font-size:40px; font-weight:800; text-align:center; text-shadow:0 6px 30px rgba(0,0,0,.6);
+  padding:8px 16px; border-radius:14px;
+}
+.overlay-actions{ margin-top:16px; display:flex; gap:12px; justify-content:center; }
+.overlay .btn{ background:#1e1e1e; }
+.overlay .btn:hover{ background:#232323; }
