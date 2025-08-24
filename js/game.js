@@ -1,4 +1,4 @@
-// game.js - ランダム初期配置 + サウンド対応 + Autoplay解禁 + モバイル操作 + 発射/付着SFX
+// game.js - ランダム初期配置 + サウンド（BGM/ボイス/shot/hit） + STARTでオーディオ解禁 + モバイル操作
 
 (() => {
   // ====== 基本設定 ======
@@ -30,6 +30,23 @@
   const btnResume = document.getElementById("btnResume");
   const btnOverlayRetry = document.getElementById("btnOverlayRetry");
 
+  // ====== START オーバーレイ（無ければ生成） ======
+  let startOverlay = document.getElementById("startOverlay");
+  let btnStart = document.getElementById("btnStart");
+  if (!startOverlay) {
+    startOverlay = document.createElement("div");
+    startOverlay.id = "startOverlay";
+    startOverlay.className = "overlay";
+    startOverlay.innerHTML = `
+      <div class="overlay-text">PUZZLE-X</div>
+      <div class="overlay-actions">
+        <button id="btnStart" class="btn">START</button>
+      </div>`;
+    const stage = document.querySelector(".stage") || document.body;
+    stage.appendChild(startOverlay);
+    btnStart = startOverlay.querySelector("#btnStart");
+  }
+
   // ====== ステート ======
   let images = {};         // avatarId -> HTMLImageElement
   let avatars = [];        // [{id,file,color}]
@@ -53,7 +70,7 @@
 
   function playBGM(){
     if (!bgm){
-      bgm = new Audio("assets/sound/bgm.mp3"); // フォルダは sound
+      bgm = new Audio("assets/sound/bgm.mp3"); // フォルダは /assets/sound/
       bgm.loop = true;
       bgm.volume = 0.4;
     }
@@ -87,25 +104,7 @@
     snd.play().catch(()=>{});
   }
 
-  // ★ 最初のユーザー操作でオーディオを解禁
-  function unlockAudio(){
-    if (audioUnlocked) return;
-    audioUnlocked = true;
-    playBGM();
-    // 以後不要なのでリスナー解除
-    document.removeEventListener("pointerdown", unlockAudio);
-    document.removeEventListener("keydown", unlockAudio);
-    document.removeEventListener("touchend", unlockAudio, {passive:false});
-    cv.removeEventListener("click", unlockAudio);
-    cv.removeEventListener("touchstart", unlockAudio, {passive:false});
-  }
-  document.addEventListener("pointerdown", unlockAudio);
-  document.addEventListener("keydown", unlockAudio);
-  document.addEventListener("touchend", unlockAudio, {passive:false});
-  cv.addEventListener("click", unlockAudio);
-  cv.addEventListener("touchstart", unlockAudio, {passive:false});
-
-  // ====== 画像ローダー（カンマ拡張子にも対応） ======
+  // ====== 画像ローダー（拡張子曖昧対策） ======
   const BLOB_URLS = [];
   window.addEventListener("unload", () => { BLOB_URLS.forEach(u => URL.revokeObjectURL(u)); });
 
@@ -197,7 +196,7 @@
     nextBall = makeNextBall();
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     hideOverlay();
-    // BGMは unlockAudio で開始する
+    // BGMは START クリックで開始する
     loop(0);
   }
 
@@ -301,9 +300,11 @@
     };
     state = "firing";
 
-    // 共通発射音 + 個別ボイス
-    playShotSfx();
-    playFireVoice(nextBall.avatarId);
+    // ★共通発射音 + 個別ボイス
+    if (audioUnlocked) {
+      playShotSfx();
+      playFireVoice(nextBall.avatarId);
+    }
 
     nextBall = makeNextBall();
   }
@@ -321,19 +322,19 @@
     if (cluster.length >= CONFIG.CLEAR_MATCH){
       for (const {r,c} of cluster){
         if (board[r][c]){
-          playClearVoice(board[r][c].avatarId);
+          if (audioUnlocked) playClearVoice(board[r][c].avatarId);
           board[r][c] = null;
         }
       }
       // 天井連結以外を落とす
       const connected = PXGrid.findCeilingConnected(board);
       for (let r = 0; r < board.length; r++){
-        for (let c = 0; c < PXGrid.COLS; c++){
+        for (let c = 0; c < CONFIG.COLS; c++){
           const cell = board[r][c];
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
-            playClearVoice(cell.avatarId); // 落下もボイスOK
+            if (audioUnlocked) playClearVoice(cell.avatarId); // 落下もボイスOK
             board[r][c] = null;
           }
         }
@@ -344,7 +345,7 @@
   // ====== 判定 ======
   function isCleared(){
     for (let r = 0; r < board.length; r++){
-      for (let c = 0; c < PXGrid.COLS; c++){
+      for (let c = 0; c < CONFIG.COLS; c++){
         if (board[r][c]) return false;
       }
     }
@@ -354,7 +355,7 @@
   function isGameOver(){
     const bottomY = cv.height - CONFIG.BOTTOM_MARGIN;
     for (let r = 0; r < board.length; r++){
-      for (let c = 0; c < PXGrid.COLS; c++){
+      for (let c = 0; c < CONFIG.COLS; c++){
         const cell = board[r][c];
         if (!cell) continue;
         const {x,y} = PXGrid.cellCenter(r,c,dropOffsetY);
@@ -371,20 +372,42 @@
   }
 
   // ====== UIボタン ======
-  btnPause.addEventListener("click", ()=>{
-    if (state === "paused") return;
-    state = "paused";
-    stopBGM();
-    showOverlay("PAUSED");
+  if (btnPause){
+    btnPause.addEventListener("click", ()=>{
+      if (state === "paused") return;
+      state = "paused";
+      if (audioUnlocked) stopBGM();
+      showOverlay("PAUSED");
+    });
+  }
+  if (btnRetry){
+    btnRetry.addEventListener("click", ()=> reset());
+  }
+  if (btnResume){
+    btnResume.addEventListener("click", ()=>{
+      if (state !== "paused") return;
+      hideOverlay();
+      state = "ready";
+      if (audioUnlocked) playBGM();
+    });
+  }
+  if (btnOverlayRetry){
+    btnOverlayRetry.addEventListener("click", ()=> reset());
+  }
+
+  // ====== START クリックでオーディオ解禁＆ゲーム開始 ======
+  btnStart.addEventListener("click", async ()=>{
+    if (!audioUnlocked) {
+      audioUnlocked = true;
+      playBGM(); // ユーザー操作の文脈で必ず鳴る
+    }
+    startOverlay.classList.add("hidden");
+    if (!board) {
+      await init();    // 初回
+    } else {
+      await reset();   // 2回目以降
+    }
   });
-  btnRetry.addEventListener("click", ()=> reset());
-  btnResume.addEventListener("click", ()=>{
-    if (state !== "paused") return;
-    hideOverlay();
-    state = "ready";
-    if (audioUnlocked) playBGM();
-  });
-  btnOverlayRetry.addEventListener("click", ()=> reset());
 
   async function reset(){
     await loadLevel();
@@ -399,16 +422,19 @@
   }
 
   function showOverlay(text){
+    if (!overlay) return;
     overlayText.textContent = text;
     overlay.classList.remove("hidden");
     const resumeBtn = document.getElementById("btnResume");
-    if (text === "GAME OVER" || text === "GAME CLEAR!"){
-      resumeBtn.style.display = "none";
-    } else {
-      resumeBtn.style.display = "";
+    if (resumeBtn){
+      if (text === "GAME OVER" || text === "GAME CLEAR!"){
+        resumeBtn.style.display = "none";
+      } else {
+        resumeBtn.style.display = "";
+      }
     }
   }
-  function hideOverlay(){ overlay.classList.add("hidden"); }
+  function hideOverlay(){ if (overlay) overlay.classList.add("hidden"); }
 
   // ====== メインループ ======
   let last = 0;
@@ -442,7 +468,7 @@
           placeAt(best.row, best.col, moving);
 
           // ★付着音
-          playHitSfx();
+          if (audioUnlocked) playHitSfx();
 
           handleMatchesAndFalls(best.row, best.col);
           moving = null;
@@ -462,7 +488,7 @@
             placeAt(snap.row, snap.col, moving);
 
             // ★付着音
-            playHitSfx();
+            if (audioUnlocked) playHitSfx();
 
             handleMatchesAndFalls(snap.row, snap.col);
             moving = null;
@@ -482,17 +508,19 @@
     if (state !== "paused" && state !== "over" && state !== "clear"){
       if (isGameOver()){
         state = "over";
-        stopBGM();
+        if (audioUnlocked) stopBGM();
         showOverlay("GAME OVER");
       } else if (isCleared()){
         state = "clear";
-        stopBGM();
+        if (audioUnlocked) stopBGM();
         showOverlay("GAME CLEAR!");
       }
     }
 
     // HUD
-    shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    if (shotsLeftEl){
+      shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
+    }
 
     // 描画
     ctx.clearRect(0,0,cv.width,cv.height);
@@ -533,6 +561,6 @@
     requestAnimationFrame(loop);
   }
 
-  // ====== 起動 ======
-  init();
+  // ====== 自動起動はしない：STARTボタン待ち ======
+  // init(); ← 呼ばない
 })();
