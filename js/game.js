@@ -39,7 +39,7 @@
     startOverlay.id = "startOverlay";
     startOverlay.className = "overlay";
     startOverlay.innerHTML = `
-      <div class="overlay-text">PUZZLE-X</div>
+      <div class="overlay-text">Cryptoバブルボブル</div>
       <div class="overlay-actions"><button id="btnStart" class="btn">START</button></div>`;
     const stage = document.querySelector(".stage") || document.body;
     stage.appendChild(startOverlay);
@@ -596,3 +596,4 @@
     if (!board) await init(); else await reset();
   });
 })();
+
