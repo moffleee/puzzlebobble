@@ -38,7 +38,7 @@
     startOverlay.id = "startOverlay";
     startOverlay.className = "overlay";
     startOverlay.innerHTML = `
-      <div class="overlay-text">PUZZLE-X</div>
+      <div class="overlay-text">Cryptoバブルボブル</div>
       <div class="overlay-actions">
         <button id="btnStart" class="btn">START</button>
       </div>`;
@@ -564,3 +564,4 @@
   // ====== 自動起動はしない：STARTボタン待ち ======
   // init(); ← 呼ばない
 })();
+
