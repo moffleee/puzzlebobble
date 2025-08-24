@@ -1,4 +1,4 @@
-// game.js - ランダム初期配置 + サウンド対応 + Autoplay解禁 + モバイル操作
+// game.js - ランダム初期配置 + サウンド対応 + Autoplay解禁 + モバイル操作 + 発射/付着SFX
 
 (() => {
   // ====== 基本設定 ======
@@ -61,11 +61,26 @@
   }
   function stopBGM(){ if (bgm) bgm.pause(); }
 
+  // 共通の発射音
+  function playShotSfx(){
+    const snd = new Audio("assets/sound/shot.mp3");
+    snd.volume = 0.5;
+    snd.play().catch(()=>{});
+  }
+  // 付着（スナップ）音
+  function playHitSfx(){
+    const snd = new Audio("assets/sound/hit.mp3");
+    snd.volume = 0.6;
+    snd.play().catch(()=>{});
+  }
+
+  // 個別ボイス（発射）
   function playFireVoice(avatarId){
     const snd = new Audio(`assets/sound/fire_${avatarId}.mp3`);
     snd.volume = 0.7;
     snd.play().catch(()=>{});
   }
+  // 個別ボイス（消滅）
   function playClearVoice(avatarId){
     const snd = new Audio(`assets/sound/clear_${avatarId}.mp3`);
     snd.volume = 0.8;
@@ -285,7 +300,11 @@
       color: nextBall.color, avatarId: nextBall.avatarId
     };
     state = "firing";
+
+    // 共通発射音 + 個別ボイス
+    playShotSfx();
     playFireVoice(nextBall.avatarId);
+
     nextBall = makeNextBall();
   }
 
@@ -421,6 +440,10 @@
         }
         if (best){
           placeAt(best.row, best.col, moving);
+
+          // ★付着音
+          playHitSfx();
+
           handleMatchesAndFalls(best.row, best.col);
           moving = null;
           shotsUsed++;
@@ -437,13 +460,17 @@
           const snap = PXPhys.chooseSnapCell(board, dropOffsetY, CONFIG.R, moving.x, moving.y, {r:col.r, c:col.c});
           if (snap){
             placeAt(snap.row, snap.col, moving);
+
+            // ★付着音
+            playHitSfx();
+
             handleMatchesAndFalls(snap.row, snap.col);
             moving = null;
             shotsUsed++;
             dropCeilingIfNeeded();
             state = "ready";
           } else {
-            // 一歩戻して再評価
+            // 一歩戻して再評価（衝突分離の保険）
             moving.x -= moving.vx * dt;
             moving.y -= moving.vy * dt;
           }
