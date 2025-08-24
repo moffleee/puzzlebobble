@@ -14,6 +14,12 @@
       <span id="shotsLeft">-</span>
     </div>
     <div class="right">
+      <!-- 追加：BGM音量コントロール -->
+      <div class="vol">
+        <span class="volLabel">BGM</span>
+        <input id="bgmVol" type="range" min="0" max="100" value="40" />
+        <span id="bgmVolVal" class="volVal">40%</span>
+      </div>
       <button id="btnPause" class="btn">Pause</button>
       <button id="btnRetry" class="btn">Retry</button>
     </div>
@@ -27,6 +33,16 @@
       <div class="title">NEXT</div>
       <canvas id="next" width="96" height="96"></canvas>
     </div>
+
+    <!-- STARTオーバーレイ（JSが無い場合でも見せたいならここに置いてもOK。JS側が自動生成もします） -->
+    <!--
+    <div id="startOverlay" class="overlay">
+      <div class="overlay-text">PUZZLE-X</div>
+      <div class="overlay-actions">
+        <button id="btnStart" class="btn">START</button>
+      </div>
+    </div>
+    -->
 
     <!-- オーバーレイ（Clear/Over/Paused） -->
     <div id="overlay" class="overlay hidden">
