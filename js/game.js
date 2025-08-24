@@ -1,4 +1,4 @@
-// game.js - 状態管理／入力／ループ（タッチ操作：押しっぱで左右スライド照準→離して発射）
+// game.js - 状態管理／入力／ループ（ランダム初期配置対応版）
 
 (() => {
   // ====== 基本設定 ======
@@ -11,8 +11,11 @@
     CLEAR_MATCH: 3,              // 同色3個以上で消去
     LEFT_MARGIN: 24, RIGHT_MARGIN: 24, TOP_MARGIN: 24, BOTTOM_MARGIN: 96,
 
-    AIM_Y_OFFSET_MOBILE: 160,    // モバイル時：狙い点の固定高さ（シューターから上方向の距離）
-    MIN_AIM_ANGLE_DEG: 7         // 最小射角（水平に近すぎるのを防ぐ）
+    AIM_Y_OFFSET_MOBILE: 160,    // モバイル時：狙い点の固定高さ
+    MIN_AIM_ANGLE_DEG: 7,        // 最小射角（水平すぎを防ぐ）
+
+    INIT_ROWS: 6,                // 初期段数（難易度調整用）
+    EMPTY_RATE: 0.1              // 空マス率（難易度調整用）
   };
 
   // DOM
@@ -44,7 +47,7 @@
   let touchAiming = false;
   let activeTouchId = null;
 
-  // ====== 画像ローダー（noroi,png 等のファイル名にも対応） ======
+  // ====== 画像ローダー ======
   const BLOB_URLS = [];
   window.addEventListener("unload", () => { BLOB_URLS.forEach(u => URL.revokeObjectURL(u)); });
 
@@ -100,44 +103,17 @@
     await Promise.all(jobs);
   }
 
+  // ====== ランダム初期配置 ======
   async function loadLevel(){
-    const resp = await fetch("data/level_001.json");
-    const lvl = await resp.json();
-
-    PXGrid.COLS = CONFIG.COLS;
-    PXGrid.R = CONFIG.R;
-    PXGrid.TOP_MARGIN = CONFIG.TOP_MARGIN;
-
     board = PXGrid.createBoard(CONFIG.BOARD_ROWS, CONFIG.COLS);
 
-    const codeToColor = lvl.palette;
-    for (let r = 0; r < lvl.rows.length; r++){
-      const tokens = lvl.rows[r].split(/\s+/).filter(Boolean);
-      for (let c = 0; c < tokens.length; c++){
-        const t = tokens[c];
-        if (t === "_") continue;
-        const color = codeToColor[t] || t;
-        const avatarId = pickAvatarForColor(color);
-        if (c < CONFIG.COLS) board[r][c] = { color, avatarId };
+    for (let r = 0; r < CONFIG.INIT_ROWS; r++){
+      for (let c = 0; c < CONFIG.COLS; c++){
+        if (Math.random() < CONFIG.EMPTY_RATE) continue; // 空マス
+        const avatar = avatars[Math.floor(Math.random() * avatars.length)];
+        board[r][c] = { color: avatar.color, avatarId: avatar.id };
       }
     }
-  }
-
-  // 色→アバター（ラウンドロビン）
-  const rrIndex = {};
-  function pickAvatarForColor(color){
-    const pool = avatars.filter(a => a.color.toLowerCase() === color.toLowerCase());
-    if (!pool.length) {
-      if (!rrIndex["_all"]) rrIndex["_all"] = 0;
-      const id = avatars[rrIndex["_all"] % avatars.length].id;
-      rrIndex["_all"]++;
-      return id;
-    }
-    const key = `clr:${color}`;
-    if (!rrIndex[key]) rrIndex[key] = 0;
-    const id = pool[rrIndex[key] % pool.length].id;
-    rrIndex[key]++;
-    return id;
   }
 
   // 次弾（盤に存在する色限定）
@@ -145,8 +121,11 @@
     const colors = PXGrid.existingColors(board);
     const color = colors.length ? colors[Math.floor(Math.random()*colors.length)]
                                 : palette[Math.floor(Math.random()*palette.length)];
-    const avatarId = pickAvatarForColor(color);
-    return { color, avatarId };
+    const avatarPool = avatars.filter(a => a.color.toLowerCase() === color.toLowerCase());
+    const avatar = avatarPool.length
+      ? avatarPool[Math.floor(Math.random() * avatarPool.length)]
+      : avatars[Math.floor(Math.random() * avatars.length)];
+    return { color: avatar.color, avatarId: avatar.id };
   }
 
   // 初期化
@@ -168,23 +147,22 @@
 
   // ====== 入力（PCマウス） ======
   cv.addEventListener("mousemove", e=>{
-    if (touchAiming) return; // タッチ中はマウスを無視
+    if (touchAiming) return; // タッチ中はマウス無視
     const {x,y} = clientToCanvas(e.clientX, e.clientY);
     aim.x = clampAimX(x);
-    aim.y = Math.min(y, shooter.y - 12); // なるべく上方向に
+    aim.y = Math.min(y, shooter.y - 12);
   });
   cv.addEventListener("click", ()=>{
     if (state === "ready") fire();
   });
 
-  // ====== 入力（モバイルタッチ：押しっぱ→左右スライド→指を離して発射） ======
+  // ====== 入力（モバイルタッチ：押しっぱ→左右スライド→離すと発射） ======
   cv.addEventListener("touchstart", (e)=>{
     if (e.changedTouches.length === 0) return;
     const t = e.changedTouches[0];
     const {x} = clientToCanvas(t.clientX, t.clientY);
     touchAiming = true;
     activeTouchId = t.identifier;
-    // 照準はY固定（画面比で打ちやすい高さ）
     aim.x = clampAimX(x);
     aim.y = shooter.y - CONFIG.AIM_Y_OFFSET_MOBILE;
     e.preventDefault();
@@ -192,7 +170,6 @@
 
   cv.addEventListener("touchmove", (e)=>{
     if (!touchAiming) return;
-    // アクティブな指のみ追う
     const t = findTouch(e.changedTouches, activeTouchId);
     if (!t) return;
     const {x} = clientToCanvas(t.clientX, t.clientY);
@@ -207,7 +184,6 @@
     if (!t) return;
     touchAiming = false;
     activeTouchId = null;
-    // 指を離したら発射
     if (state === "ready") fire();
     e.preventDefault();
   }, {passive:false});
@@ -228,7 +204,6 @@
     return null;
   }
 
-  // 画面座標→キャンバス座標
   function clientToCanvas(clientX, clientY){
     const rect = cv.getBoundingClientRect();
     const scaleX = cv.width / rect.width;
@@ -239,17 +214,14 @@
     };
   }
 
-  // 狙いXの範囲をフィールド内に制限（壁反射直後の無理角度を避ける）
   function clampAimX(x){
     const minX = CONFIG.LEFT_MARGIN + CONFIG.R;
     const maxX = cv.width - CONFIG.RIGHT_MARGIN - CONFIG.R;
     return Math.min(maxX, Math.max(minX, x));
   }
 
-  // 最小射角の適用（水平に近すぎるのを防ぐ）
   function applyMinAngle(vx, vy){
-    // 角度（水平からの偏角）
-    const angle = Math.atan2(-vy, vx); // 上向きを正にしたいので -vy
+    const angle = Math.atan2(-vy, vx);
     const min = CONFIG.MIN_AIM_ANGLE_DEG * Math.PI / 180;
     const sign = angle < 0 ? -1 : 1;
     if (Math.abs(angle) < min){
@@ -260,23 +232,16 @@
     return { vx, vy };
   }
 
-  // 発射
+  // ====== 発射 ======
   function fire(){
     if (state !== "ready" || !nextBall) return;
-
-    // ベクトル（シューター→狙い）
     let dx = aim.x - shooter.x;
     let dy = aim.y - shooter.y;
-    // 上方向限定（万一dyが0以上なら少し上に）
     if (dy >= -4) dy = -4;
-
     const len = Math.hypot(dx,dy) || 1;
     let vx = (dx/len) * CONFIG.SHOT_SPEED;
     let vy = (dy/len) * CONFIG.SHOT_SPEED;
-
-    // 最小射角の適用
     ({vx, vy} = applyMinAngle(vx, vy));
-
     moving = {
       x: shooter.x, y: shooter.y, r: CONFIG.R,
       vx, vy,
@@ -286,7 +251,6 @@
     nextBall = makeNextBall();
   }
 
-  // 盤面に玉を置く
   function placeAt(row,col,ball){
     if (!PXGrid.inBounds(board,row,col)) return false;
     if (row >= board.length) return false;
@@ -294,14 +258,12 @@
     return true;
   }
 
-  // 消去・浮遊塊除去
   function handleMatchesAndFalls(sr, sc){
     const cluster = PXGrid.findCluster(board, sr, sc);
     let removed = 0;
     if (cluster.length >= CONFIG.CLEAR_MATCH){
       for (const {r,c} of cluster){ board[r][c] = null; }
       removed += cluster.length;
-
       const connected = PXGrid.findCeilingConnected(board);
       for (let r = 0; r < board.length; r++){
         for (let c = 0; c < CONFIG.COLS; c++){
@@ -309,7 +271,7 @@
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
-            board[r][c] = null; // 落下（演出省略）
+            board[r][c] = null;
             removed++;
           }
         }
@@ -318,7 +280,6 @@
     return removed;
   }
 
-  // クリア判定（盤面が空）
   function isCleared(){
     for (let r = 0; r < board.length; r++){
       for (let c = 0; c < CONFIG.COLS; c++){
@@ -328,7 +289,6 @@
     return true;
   }
 
-  // ゲームオーバー判定
   function isGameOver(){
     const bottomY = cv.height - CONFIG.BOTTOM_MARGIN;
     for (let r = 0; r < board.length; r++){
@@ -342,14 +302,13 @@
     return false;
   }
 
-  // 1段降下
   function dropCeilingIfNeeded(){
     if (shotsUsed > 0 && shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS === 0){
       dropOffsetY += PXGrid.ROW_H;
     }
   }
 
-  // ボタン
+  // ====== ボタン ======
   btnPause.addEventListener("click", ()=>{
     if (state === "paused") return;
     state = "paused";
@@ -363,7 +322,6 @@
   });
   btnOverlayRetry.addEventListener("click", ()=> reset());
 
-  // リセット
   async function reset(){
     await loadLevel();
     dropOffsetY = 0;
@@ -375,7 +333,6 @@
     hideOverlay();
   }
 
-  // オーバーレイ
   function showOverlay(text){
     overlayText.textContent = text;
     overlay.classList.remove("hidden");
@@ -388,24 +345,19 @@
   }
   function hideOverlay(){ overlay.classList.add("hidden"); }
 
-  // メインループ
+  // ====== メインループ ======
   let last = 0;
   function loop(ts){
     const dt = (ts - last) / 1000 || 0;
     last = ts;
 
     if (state === "firing" && moving){
-      // 移動
       moving.x += moving.vx * dt;
       moving.y += moving.vy * dt;
-
-      // 壁反射
       PXPhys.reflectIfNeeded(moving, {
         left: CONFIG.LEFT_MARGIN,
         right: cv.width - CONFIG.RIGHT_MARGIN
       });
-
-      // 天井HITでスナップ
       if (PXPhys.hitCeiling(moving, CONFIG.TOP_MARGIN + 24 + dropOffsetY, CONFIG.R)){
         const cells = PXGrid.nearbyCells(moving.x, moving.y, dropOffsetY);
         let best = null, bestD2 = 1e15;
@@ -427,7 +379,6 @@
           moving.y += 1;
         }
       } else {
-        // 既存セルとの衝突
         const col = PXPhys.checkCollision(moving, board, dropOffsetY, CONFIG.R);
         if (col.hit){
           const snap = PXPhys.chooseSnapCell(board, dropOffsetY, CONFIG.R, moving.x, moving.y, {r:col.r, c:col.c});
@@ -439,7 +390,6 @@
             dropCeilingIfNeeded();
             state = "ready";
           } else {
-            // まれに隙間無し。少し戻して再計算
             moving.x -= moving.vx * dt;
             moving.y -= moving.vy * dt;
           }
@@ -447,7 +397,6 @@
       }
     }
 
-    // 判定
     if (state !== "paused" && state !== "over" && state !== "clear"){
       if (isGameOver()){
         state = "over";
@@ -458,38 +407,30 @@
       }
     }
 
-    // HUD
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
 
-    // 描画
     ctx.clearRect(0,0,cv.width,cv.height);
 
-    // フィールド枠
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 2;
     ctx.strokeRect(CONFIG.LEFT_MARGIN, CONFIG.TOP_MARGIN, cv.width - CONFIG.LEFT_MARGIN - CONFIG.RIGHT_MARGIN, cv.height - CONFIG.TOP_MARGIN - CONFIG.BOTTOM_MARGIN);
 
-    // 盤面
     PXRender.drawBoard(ctx, board, dropOffsetY, CONFIG.R, images);
 
-    // 照準ガイド
     if (state === "ready"){
       PXRender.drawAimGuide(ctx, shooter.x, shooter.y, aim.x, aim.y);
     }
 
-    // 発射中の玉
     if (moving){
       const img = images[moving.avatarId];
       PXRender.drawAvatarBubble(ctx, img, moving.x, moving.y, CONFIG.R, moving.color);
     }
 
-    // シューター位置目印
     ctx.fillStyle = "#fff";
     ctx.globalAlpha = .15;
     ctx.beginPath(); ctx.arc(shooter.x, shooter.y, CONFIG.R*0.9, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    // 次弾
     PXRender.drawNext(cvNext, nextBall, CONFIG.R, images);
 
     requestAnimationFrame(loop);
