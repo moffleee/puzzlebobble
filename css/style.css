@@ -6,6 +6,8 @@ html,body{
   margin:0; padding:0; background:var(--bg); color:var(--fg);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;
 }
+
+/* HUD */
 .hud{
   position:fixed;
   inset:calc(env(safe-area-inset-top, 0px) + 12px) 12px auto 12px;
@@ -20,25 +22,39 @@ html,body{
   font-size:14px;
 }
 .btn:hover{ background:#222; border-color:#444; transform:translateY(-1px); }
+
+/* ★ 背景1枚方式：ページ背景にビーチ画像を敷く */
 .stage{
-  min-height:100dvh; display:grid; place-items:center;
-  padding:64px 16px 24px;
+  min-height:100dvh; display:grid; place-items:center; padding:64px 16px 24px;
+  background-image: url("../assets/image/bg_beach.png"); /* ←保存した画像のパス */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
+
+/* Canvasは透過、枠線と影だけ残す */
 canvas#game{
   width:min(92vw,480px); height:calc(min(92vw,480px) * 1.5);
-  background:#111; border:1px solid #252525; border-radius:16px; box-shadow:0 6px 24px rgba(0,0,0,.4);
-  /* スクロール/ダブルタップ拡大などの誤作動防止 */
-  touch-action: none;
-  -ms-touch-action: none;
+  background: transparent;                 /* ★透過 */
+  border:2px solid rgba(255,255,255,.18);
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  touch-action: none; -ms-touch-action: none;
 }
+
+/* NEXTパネルは背景上で視認性を確保 */
 .nextDock{
   position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  width:120px; text-align:center; background:#111; border:1px solid #272727;
+  width:120px; text-align:center;
+  backdrop-filter: blur(6px);
+  background: rgba(20,20,20,.6);
+  border:1px solid rgba(255,255,255,.15);
   border-radius:14px; padding:10px 8px; box-shadow:0 6px 24px rgba(0,0,0,.35);
 }
 .nextDock .title{ font-size:12px; color:#aaa; margin-bottom:6px; letter-spacing:1px; }
 #next{ width:96px; height:96px; display:block; margin:0 auto; }
 
+/* オーバーレイ（Clear/Over/Paused） */
 .overlay{
   position:absolute; inset:0; display:grid; place-items:center; border-radius:16px;
   background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.65));
