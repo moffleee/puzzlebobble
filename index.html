@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Puzzle-X | Canvas avatar test</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    :root{ --bg:#0b0b0b; --fg:#fff; }
+    html,body{ margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif; }
+    .wrap{ min-height:100dvh; display:grid; place-items:center; }
+    canvas{ width:360px; height:640px; border:1px solid #333; border-radius:12px; background:#111; }
+    .hint{ text-align:center; margin-top:8px; color:#bbb; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <canvas id="cv" width="360" height="640"></canvas>
+      <div class="hint">assets/avatars/a01.jpg を丸抜き＋色リングで描画するテスト</div>
+    </div>
+  </div>
+
+  <script>
+    // 設定
+    const AVATAR_PATH = "assets/avatars/a01.jpg"; // まず1枚でテスト
+    const RING_COLOR  = "#FF4D4D";                 // ゲーム上の“色”
+    const RADIUS      = 40;                        // 玉の半径(px)
+
+    // 画像読み込み
+    const img = new Image();
+    img.src = AVATAR_PATH + "?v=1"; // キャッシュ制御は適宜
+    img.onload = () => draw();
+
+    function draw(){
+      const cv = document.getElementById("cv");
+      const ctx = cv.getContext("2d");
+
+      const x = cv.width/2, y = cv.height/2, r = RADIUS;
+
+      // 背景
+      ctx.clearRect(0,0,cv.width,cv.height);
+
+      // 丸くクリップしてアバターを描く（cover風に中央表示）
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.clip();
+      // 画像を正方形にフィット
+      const size = r*2;
+      ctx.drawImage(img, x - r, y - r, size, size);
+      ctx.restore();
+
+      // 外周リング（ゲームの色）
+      ctx.lineWidth = Math.max(2, r * 0.12);
+      ctx.strokeStyle = RING_COLOR;
+      ctx.beginPath();
+      ctx.arc(x, y, r - ctx.lineWidth/2, 0, Math.PI*2);
+      ctx.stroke();
+
+      // ほんの少しのハイライト
+      ctx.globalAlpha = 0.12;
+      const grd = ctx.createRadialGradient(x - r*0.4, y - r*0.4, r*0.1, x, y, r);
+      grd.addColorStop(0, "#fff");
+      grd.addColorStop(1, "transparent");
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  </script>
+</body>
+</html>
