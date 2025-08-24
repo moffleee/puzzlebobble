@@ -1,21 +1,21 @@
-// game.js - 状態管理／入力／ループ（ランダム初期配置対応版）
+// game.js - ランダム初期配置 + サウンド対応版
 
 (() => {
   // ====== 基本設定 ======
   const CONFIG = {
     COLS: 12,
-    R: 18,                       // 玉半径(px)
-    BOARD_ROWS: 18,              // 盤の最大行
-    SHOT_SPEED: 640,             // px/sec
-    CEILING_DROP_PER_SHOTS: 8,   // N発ごとに1段降下
-    CLEAR_MATCH: 3,              // 同色3個以上で消去
+    R: 18,
+    BOARD_ROWS: 18,
+    SHOT_SPEED: 640,
+    CEILING_DROP_PER_SHOTS: 8,
+    CLEAR_MATCH: 3,
     LEFT_MARGIN: 24, RIGHT_MARGIN: 24, TOP_MARGIN: 24, BOTTOM_MARGIN: 96,
 
-    AIM_Y_OFFSET_MOBILE: 160,    // モバイル時：狙い点の固定高さ
-    MIN_AIM_ANGLE_DEG: 7,        // 最小射角（水平すぎを防ぐ）
+    AIM_Y_OFFSET_MOBILE: 160,
+    MIN_AIM_ANGLE_DEG: 7,
 
-    INIT_ROWS: 6,                // 初期段数（難易度調整用）
-    EMPTY_RATE: 0.1              // 空マス率（難易度調整用）
+    INIT_ROWS: 6,
+    EMPTY_RATE: 0.1
   };
 
   // DOM
@@ -30,22 +30,50 @@
   const btnResume = document.getElementById("btnResume");
   const btnOverlayRetry = document.getElementById("btnOverlayRetry");
 
-  // 共有ステート
-  let images = {};         // avatarId -> HTMLImageElement
-  let avatars = [];        // [{id,file,color}]
-  let palette = [];        // ["#..",...]
-  let board = null;        // [row][col] -> {color, avatarId}
-  let dropOffsetY = 0;     // 天井降下の累計オフセット
+  // ステート
+  let images = {};
+  let avatars = [];
+  let palette = [];
+  let board = null;
+  let dropOffsetY = 0;
   let shotsUsed = 0;
-  let state = "ready";     // ready | firing | settle | paused | over | clear
-  let shooter = null;      // {x,y}
-  let aim = {x: 0, y: 0};  // 照準点
-  let moving = null;       // 発射中の玉 {x,y,vx,vy,r,color,avatarId}
+  let state = "ready";
+  let shooter = null;
+  let aim = {x: 0, y: 0};
+  let moving = null;
   let nextBall = null;
 
-  // タッチ状態
+  // タッチ
   let touchAiming = false;
   let activeTouchId = null;
+
+  // ====== サウンド ======
+  let bgm;
+
+  function playBGM(){
+    if (!bgm){
+      bgm = new Audio("assets/sound/bgm.mp3");
+      bgm.loop = true;
+      bgm.volume = 0.4;
+    }
+    bgm.play().catch(()=>{});
+  }
+
+  function stopBGM(){
+    if (bgm) bgm.pause();
+  }
+
+  function playFireVoice(avatarId){
+    const snd = new Audio(`assets/sound/fire_${avatarId}.mp3`);
+    snd.volume = 0.7;
+    snd.play();
+  }
+
+  function playClearVoice(avatarId){
+    const snd = new Audio(`assets/sound/clear_${avatarId}.mp3`);
+    snd.volume = 0.8;
+    snd.play();
+  }
 
   // ====== 画像ローダー ======
   const BLOB_URLS = [];
@@ -109,14 +137,14 @@
 
     for (let r = 0; r < CONFIG.INIT_ROWS; r++){
       for (let c = 0; c < CONFIG.COLS; c++){
-        if (Math.random() < CONFIG.EMPTY_RATE) continue; // 空マス
+        if (Math.random() < CONFIG.EMPTY_RATE) continue;
         const avatar = avatars[Math.floor(Math.random() * avatars.length)];
         board[r][c] = { color: avatar.color, avatarId: avatar.id };
       }
     }
   }
 
-  // 次弾（盤に存在する色限定）
+  // 次弾
   function makeNextBall(){
     const colors = PXGrid.existingColors(board);
     const color = colors.length ? colors[Math.floor(Math.random()*colors.length)]
@@ -142,12 +170,13 @@
     nextBall = makeNextBall();
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     hideOverlay();
+    playBGM();  // ★開始時にBGM再生
     loop(0);
   }
 
   // ====== 入力（PCマウス） ======
   cv.addEventListener("mousemove", e=>{
-    if (touchAiming) return; // タッチ中はマウス無視
+    if (touchAiming) return;
     const {x,y} = clientToCanvas(e.clientX, e.clientY);
     aim.x = clampAimX(x);
     aim.y = Math.min(y, shooter.y - 12);
@@ -156,7 +185,7 @@
     if (state === "ready") fire();
   });
 
-  // ====== 入力（モバイルタッチ：押しっぱ→左右スライド→離すと発射） ======
+  // ====== 入力（タッチ） ======
   cv.addEventListener("touchstart", (e)=>{
     if (e.changedTouches.length === 0) return;
     const t = e.changedTouches[0];
@@ -248,6 +277,9 @@
       color: nextBall.color, avatarId: nextBall.avatarId
     };
     state = "firing";
+
+    playFireVoice(nextBall.avatarId); // ★発射ボイス
+
     nextBall = makeNextBall();
   }
 
@@ -260,10 +292,13 @@
 
   function handleMatchesAndFalls(sr, sc){
     const cluster = PXGrid.findCluster(board, sr, sc);
-    let removed = 0;
     if (cluster.length >= CONFIG.CLEAR_MATCH){
-      for (const {r,c} of cluster){ board[r][c] = null; }
-      removed += cluster.length;
+      for (const {r,c} of cluster){
+        if (board[r][c]){
+          playClearVoice(board[r][c].avatarId); // ★消滅ボイス
+          board[r][c] = null;
+        }
+      }
       const connected = PXGrid.findCeilingConnected(board);
       for (let r = 0; r < board.length; r++){
         for (let c = 0; c < CONFIG.COLS; c++){
@@ -271,13 +306,12 @@
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
+            playClearVoice(cell.avatarId); // 浮遊塊落下もボイス
             board[r][c] = null;
-            removed++;
           }
         }
       }
     }
-    return removed;
   }
 
   function isCleared(){
@@ -312,6 +346,7 @@
   btnPause.addEventListener("click", ()=>{
     if (state === "paused") return;
     state = "paused";
+    stopBGM();
     showOverlay("PAUSED");
   });
   btnRetry.addEventListener("click", ()=> reset());
@@ -319,6 +354,7 @@
     if (state !== "paused") return;
     hideOverlay();
     state = "ready";
+    playBGM();
   });
   btnOverlayRetry.addEventListener("click", ()=> reset());
 
@@ -331,6 +367,7 @@
     state = "ready";
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     hideOverlay();
+    playBGM();
   }
 
   function showOverlay(text){
@@ -400,9 +437,11 @@
     if (state !== "paused" && state !== "over" && state !== "clear"){
       if (isGameOver()){
         state = "over";
+        stopBGM();
         showOverlay("GAME OVER");
       } else if (isCleared()){
         state = "clear";
+        stopBGM();
         showOverlay("GAME CLEAR!");
       }
     }
@@ -410,7 +449,6 @@
     shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
 
     ctx.clearRect(0,0,cv.width,cv.height);
-
     ctx.strokeStyle = "rgba(255,255,255,.08)";
     ctx.lineWidth = 2;
     ctx.strokeRect(CONFIG.LEFT_MARGIN, CONFIG.TOP_MARGIN, cv.width - CONFIG.LEFT_MARGIN - CONFIG.RIGHT_MARGIN, cv.height - CONFIG.TOP_MARGIN - CONFIG.BOTTOM_MARGIN);
@@ -431,10 +469,4 @@
     ctx.beginPath(); ctx.arc(shooter.x, shooter.y, CONFIG.R*0.9, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
 
-    PXRender.drawNext(cvNext, nextBall, CONFIG.R, images);
-
-    requestAnimationFrame(loop);
-  }
-
-  init();
-})();
+    PXRender.drawNext(cvNext, next
