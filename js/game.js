@@ -1,4 +1,5 @@
-// game.js - ランダム初期配置 + サウンド（BGM/ボイス/shot/hit） + STARTでオーディオ解禁 + モバイル操作 + BGM音量UI
+// game.js - ランダム初期配置 + サウンド（BGM/ボイス/shot/hit）
+//         + STARTでオーディオ解禁 + モバイル操作 + BGM音量UI（Web Audio対応）
 
 (() => {
   // ====== 基本設定 ======
@@ -47,16 +48,11 @@
 
   // ====== BGM 音量UI ======
   const volSlider = document.getElementById("bgmVol");
-  const volVal = document.getElementById("bgmVolVal");
-  // 0-1 に正規化して永続化
+  const volVal    = document.getElementById("bgmVolVal");
   function loadSavedBgmVolume(){
     const s = localStorage.getItem("px_bgm_vol");
     const v = s != null ? Number(s) : 0.4;
-    if (Number.isFinite(v) && v >= 0 && v <= 1) return v;
-    return 0.4;
-  }
-  function saveBgmVolume(v){
-    localStorage.setItem("px_bgm_vol", String(v));
+    return (Number.isFinite(v) && v >= 0 && v <= 1) ? v : 0.4;
   }
 
   // ====== ステート ======
@@ -76,65 +72,83 @@
   let touchAiming = false;
   let activeTouchId = null;
 
-  // ====== サウンド ======
-  let bgm;
+  // ====== サウンド（BGMはWeb Audioで音量制御） ======
   let audioUnlocked = false;
-  let bgmVolume = loadSavedBgmVolume(); // 0..1
 
-  function setBgmVolume(v){
+  // <audio> 実体（メディアソース）
+  let bgmEl = null;
+
+  // Web Audio Graph
+  let audioCtx   = null;          // (webkit)AudioContext
+  let bgmSource  = null;          // MediaElementAudioSourceNode（1回だけ作成可能）
+  let bgmGain    = null;          // GainNode（音量）
+  let bgmVolume  = loadSavedBgmVolume(); // 0..1 保存値
+
+  function ensureAudioGraph(){
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (!bgmEl) {
+      bgmEl = new Audio("assets/sound/bgm.mp3");
+      bgmEl.loop = true;
+      // iOSでは <audio>.volume は効かないが、他ブラウザでは一応保険で反映
+      bgmEl.volume = bgmVolume;
+    }
+    if (!bgmSource) {
+      // MediaElementSource は 1 つの <audio> につき 1 回だけ
+      bgmSource = audioCtx.createMediaElementSource(bgmEl);
+      bgmGain   = audioCtx.createGain();
+      bgmGain.gain.value = bgmVolume;
+      bgmSource.connect(bgmGain).connect(audioCtx.destination);
+    }
+  }
+
+  function setBgmVolumeNorm(v){ // 0..1
     bgmVolume = Math.max(0, Math.min(1, v));
-    saveBgmVolume(bgmVolume);
-    // UI反映
+    localStorage.setItem("px_bgm_vol", String(bgmVolume));
     if (volSlider) volSlider.value = String(Math.round(bgmVolume * 100));
-    if (volVal) volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
-    // 実オブジェクトに適用
-    if (bgm) bgm.volume = bgmVolume;
+    if (volVal)    volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
+    // 反映先：Web Audio（優先）/ <audio>.volume（保険）
+    if (bgmGain) bgmGain.gain.value = bgmVolume;
+    if (bgmEl)   bgmEl.volume = bgmVolume;
   }
 
-  // UI初期値
+  // UI初期値反映
+  if (volSlider) volSlider.value = String(Math.round(bgmVolume * 100));
+  if (volVal)    volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
   if (volSlider) {
-    volSlider.value = String(Math.round(bgmVolume * 100));
-  }
-  if (volVal) {
-    volVal.textContent = `${Math.round(bgmVolume * 100)}%`;
-  }
-  // UIイベント
-  if (volSlider) {
-    volSlider.addEventListener("input", (e)=>{
+    volSlider.addEventListener("input", ()=>{
       const v = Number(volSlider.value) / 100;
-      setBgmVolume(v);
+      setBgmVolumeNorm(v);
     });
   }
 
-  function playBGM(){
-    if (!bgm){
-      bgm = new Audio("assets/sound/bgm.mp3");
-      bgm.loop = true;
-    }
-    bgm.volume = bgmVolume;
-    bgm.play().catch(()=>{ /* ユーザー操作前は失敗する */ });
+  async function playBGM(){
+    ensureAudioGraph();
+    try { await audioCtx.resume(); } catch {}
+    bgmEl.play().catch(()=>{ /* ユーザー操作前は失敗する */ });
   }
-  function stopBGM(){ if (bgm) bgm.pause(); }
+  function stopBGM(){ if (bgmEl) bgmEl.pause(); }
 
-  // 共通の発射音
+  // SFX（共通）
   function playShotSfx(){
     const snd = new Audio("assets/sound/shot.mp3");
     snd.volume = 0.5;
     snd.play().catch(()=>{});
   }
-  // 付着（スナップ）音
   function playHitSfx(){
     const snd = new Audio("assets/sound/hit.mp3");
     snd.volume = 0.6;
     snd.play().catch(()=>{});
   }
-  // 個別ボイス（発射）
+
+  // 個別ボイス
   function playFireVoice(avatarId){
     const snd = new Audio(`assets/sound/fire_${avatarId}.mp3`);
     snd.volume = 0.7;
     snd.play().catch(()=>{});
   }
-  // 個別ボイス（消滅）
   function playClearVoice(avatarId){
     const snd = new Audio(`assets/sound/clear_${avatarId}.mp3`);
     snd.volume = 0.8;
@@ -199,7 +213,7 @@
     board = PXGrid.createBoard(CONFIG.BOARD_ROWS, CONFIG.COLS);
     for (let r = 0; r < CONFIG.INIT_ROWS; r++){
       for (let c = 0; c < CONFIG.COLS; c++){
-        if (Math.random() < CONFIG.EMPTY_RATE) continue; // 空マス
+        if (Math.random() < CONFIG.EMPTY_RATE) continue;
         const avatar = avatars[Math.floor(Math.random() * avatars.length)];
         board[r][c] = { color: avatar.color, avatarId: avatar.id };
       }
@@ -235,7 +249,6 @@
       shotsLeftEl.textContent = CONFIG.CEILING_DROP_PER_SHOTS - (shotsUsed % CONFIG.CEILING_DROP_PER_SHOTS);
     }
     hideOverlay();
-    // BGMは START クリックで開始
     loop(0);
   }
 
@@ -259,7 +272,6 @@
     aim.y = shooter.y - CONFIG.AIM_Y_OFFSET_MOBILE;
     e.preventDefault();
   }, {passive:false});
-
   cv.addEventListener("touchmove", (e)=>{
     if (!touchAiming) return;
     const t = findTouch(e.changedTouches, activeTouchId);
@@ -269,7 +281,6 @@
     aim.y = shooter.y - CONFIG.AIM_Y_OFFSET_MOBILE;
     e.preventDefault();
   }, {passive:false});
-
   cv.addEventListener("touchend", (e)=>{
     if (!touchAiming) return;
     const t = findTouch(e.changedTouches, activeTouchId);
@@ -279,7 +290,6 @@
     if (state === "ready") fire();
     e.preventDefault();
   }, {passive:false});
-
   cv.addEventListener("touchcancel", (e)=>{
     if (!touchAiming) return;
     const t = findTouch(e.changedTouches, activeTouchId);
@@ -337,10 +347,9 @@
     };
     state = "firing";
 
-    // 共通発射音 + 個別ボイス
     if (audioUnlocked) {
-      playShotSfx();
-      playFireVoice(nextBall.avatarId);
+      playShotSfx();                  // 共通発射音
+      playFireVoice(nextBall.avatarId); // 個別ボイス
     }
 
     nextBall = makeNextBall();
@@ -370,7 +379,7 @@
           if (!cell) continue;
           const key = `${r},${c}`;
           if (!connected.has(key)){
-            if (audioUnlocked) playClearVoice(cell.avatarId); // 落下もボイス
+            if (audioUnlocked) playClearVoice(cell.avatarId);
             board[r][c] = null;
           }
         }
@@ -429,14 +438,13 @@
   btnStart.addEventListener("click", async ()=>{
     if (!audioUnlocked) {
       audioUnlocked = true;
-      playBGM(); // ユーザー操作の文脈で必ず鳴る
+      ensureAudioGraph();
+      try { await audioCtx.resume(); } catch {}
+      setBgmVolumeNorm(bgmVolume); // UI値をGainに反映
+      playBGM();                   // ユーザー操作の文脈で確実に再生
     }
     startOverlay.classList.add("hidden");
-    if (!board) {
-      await init();    // 初回
-    } else {
-      await reset();   // 2回目以降
-    }
+    if (!board) await init(); else await reset();
   });
 
   // ====== reset/init 共通 ======
@@ -575,14 +583,14 @@
   // 自動起動しない（START待ち）
   // init();
 
-  // 音量UIの数値を初期反映（初回ロード直後）
-  setBgmVolume(bgmVolume);
-
   // STARTが押されるまで待つ
   btnStart.addEventListener("click", async ()=>{
     if (!audioUnlocked) {
       audioUnlocked = true;
-      playBGM();
+      ensureAudioGraph();
+      try { await audioCtx.resume(); } catch {}
+      setBgmVolumeNorm(bgmVolume); // UI値をGainに反映
+      playBGM();                   // ユーザー操作の文脈で確実に再生
     }
     startOverlay.classList.add("hidden");
     if (!board) await init(); else await reset();
