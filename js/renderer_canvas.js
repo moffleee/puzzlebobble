@@ -2,13 +2,25 @@
 (() => {
   const Renderer = {};
 
-  // 画像を丸く切り抜いて外周リングで描画
+  // 画像を丸く切り抜いて外周リングで描画（画像が無ければ色塗りのフォールバック）
   Renderer.drawAvatarBubble = (ctx, img, x, y, r, ringColor) => {
     ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.clip();
-    // cover風（正方形想定）
-    ctx.drawImage(img, x - r, y - r, r*2, r*2);
-    ctx.restore();
+    // 背景（フォールバック塗り）
+    const grdBg = ctx.createRadialGradient(x - r*0.4, y - r*0.4, r*0.1, x, y, r);
+    grdBg.addColorStop(0, ringColor);
+    grdBg.addColorStop(1, "#000000");
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = grdBg;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 画像があれば丸抜きで描画
+    if (img && img.complete) {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.clip();
+      ctx.drawImage(img, x - r, y - r, r*2, r*2);
+      ctx.restore();
+    }
 
     // リング
     ctx.lineWidth = Math.max(2, r * 0.12);
@@ -60,15 +72,16 @@
   };
 
   // 次弾プレビュー
-  Renderer.drawNext = (cv, next, R, imageMap) => {
-    const ctx = cv.getContext("2d");
-    ctx.clearRect(0,0,cv.width,cv.height);
-    if (!next) return;
-    const img = imageMap[next.avatarId];
-    Renderer.drawAvatarBubble(ctx, img, cv.width/2, cv.height/2, Math.min(cv.width,cv.height)*0.36, next.color);
+  Renderer.drawNext = (canvas, nextBall, R, imageMap) => {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (!nextBall) return;
+    const img = imageMap[nextBall.avatarId];
+    const x = canvas.width/2, y = canvas.height/2;
+    Renderer.drawAvatarBubble(ctx, img, x, y, R, nextBall.color);
   };
 
-  // クリア/オーバーを軽く強調（背景暗くするのはCSSオーバーレイ側）
+  // クリア/オーバーを軽く強調
   Renderer.flashText = (ctx, text, w, h) => {
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,.35)";
