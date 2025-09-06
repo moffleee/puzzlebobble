@@ -25,6 +25,6 @@
 
     { "id": "hasimoto", "file": "assets/avatars/hasimoto.png", "color": "#c49c94" },
     { "id": "murakami",    "file": "assets/avatars/murakami.png",    "color": "#f7b6d2" },
-    { "id": "yuna",      "file": "assets/avatars/yuna.png",      "color": "#c7c7c7" }
+    { "id": "gareso",      "file": "assets/avatars/gareso.png",      "color": "#c7c7c7" }
   ]
 }
