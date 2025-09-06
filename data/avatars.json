@@ -5,25 +5,25 @@
     "#98df8a", "#ff9896", "#c5b0d5", "#c49c94", "#f7b6d2", "#c7c7c7"
   ],
   "avatars": [
-    { "id": "baby",      "file": "assets/avatars/baby.png",      "color": "#1f77b4" },
-    { "id": "eth",       "file": "assets/avatars/eth.png",       "color": "#ff7f0e" },
-    { "id": "isiba",     "file": "assets/avatars/isiba.png",     "color": "#2ca02c" },
-    { "id": "kasotukun", "file": "assets/avatars/kasotukun.png", "color": "#d62728" },
-    { "id": "kotaro",    "file": "assets/avatars/kotaro.png",    "color": "#9467bd" },
+    { "id": "asou",      "file": "assets/avatars/asou.png",      "color": "#1f77b4" },
+    { "id": "isiba",       "file": "assets/avatars/isiba.png",       "color": "#ff7f0e" },
+    { "id": "iwaya",     "file": "assets/avatars/iwaya.png",     "color": "#2ca02c" },
+    { "id": "kishida", "file": "assets/avatars/kishida.png", "color": "#d62728" },
+    { "id": "yoneyama",    "file": "assets/avatars/yoneyama.png",    "color": "#9467bd" },
 
-    { "id": "moukon",    "file": "assets/avatars/moukon.png",    "color": "#8c564b" },
-    { "id": "nakoti",    "file": "assets/avatars/nakoti.png",    "color": "#e377c2" },
-    { "id": "nishi",     "file": "assets/avatars/nishi.png",     "color": "#7f7f7f" },
+    { "id": "kouno",    "file": "assets/avatars/kouno.png",    "color": "#8c564b" },
+    { "id": "nikai",    "file": "assets/avatars/nikai.png",    "color": "#e377c2" },
+    { "id": "renho",     "file": "assets/avatars/renho.png",     "color": "#7f7f7f" },
     { "id": "noroi",     "file": "assets/avatars/noroi.png",     "color": "#bcbd22" },
     { "id": "okabe",     "file": "assets/avatars/okabe.png",     "color": "#17becf" },
 
     { "id": "renho",     "file": "assets/avatars/renho.png",     "color": "#aec7e8" },
     { "id": "sanamaru",  "file": "assets/avatars/sanamaru.png",  "color": "#ffbb78" },
     { "id": "shinjiro",  "file": "assets/avatars/shinjiro.png",  "color": "#98df8a" },
-    { "id": "sou",       "file": "assets/avatars/sou.png",       "color": "#ff9896" },
+    { "id": "takenaka",       "file": "assets/avatars/takenaka.png",       "color": "#ff9896" },
     { "id": "souta",     "file": "assets/avatars/souta.png",     "color": "#c5b0d5" },
 
-    { "id": "tanukichi", "file": "assets/avatars/tanukichi.png", "color": "#c49c94" },
+    { "id": "okabe", "file": "assets/avatars/okabe.png", "color": "#c49c94" },
     { "id": "yuichi",    "file": "assets/avatars/yuichi.png",    "color": "#f7b6d2" },
     { "id": "yuna",      "file": "assets/avatars/yuna.png",      "color": "#c7c7c7" }
   ]
